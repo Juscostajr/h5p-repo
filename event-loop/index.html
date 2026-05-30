@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Event Loop</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333; padding: 20px; }
+        h1 { text-align: center; color: #2c3e50; }
+        .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        button { padding: 10px 15px; border: none; border-radius: 5px; background-color: #3498db; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #2980b9; }
+        .board { display: flex; justify-content: space-around; gap: 15px; flex-wrap: wrap; }
+        .panel { flex: 1; min-width: 200px; background: white; border: 2px solid #bdc3c7; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; }
+        .panel h3 { margin-top: 0; text-align: center; border-bottom: 2px solid #eee; padding-bottom: 10px; color: #2c3e50; }
+        .list { flex: 1; display: flex; flex-direction: column; gap: 5px; min-height: 150px; }
+        .item { padding: 8px; border-radius: 4px; text-align: center; font-weight: bold; animation: fadeIn 0.3s ease-in-out; }
+        .sync { background-color: #f1c40f; color: #fff; text-shadow: 1px 1px 1px rgba(0,0,0,0.3); }
+        .async { background-color: #e74c3c; color: #fff; }
+        .micro { background-color: #9b59b6; color: #fff; }
+        .console-item { background-color: #2ecc71; color: white; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <h1>Simulador Event Loop Visual</h1>
+    
+    <div class="controls">
+        <button onclick="addTask('sync')">Adicionar console.log()</button>
+        <button onclick="addTask('async')">Adicionar setTimeout()</button>
+        <button onclick="addTask('micro')">Adicionar Promise.then()</button>
+        <button onclick="clearAll()" style="background-color: #7f8c8d;">Limpar Tudo</button>
+    </div>
+
+    <div class="board">
+        <div class="panel">
+            <h3>Call Stack (Pilha)</h3>
+            <div class="list" id="callStack"></div>
+        </div>
+        <div class="panel">
+            <h3>Web APIs</h3>
+            <div class="list" id="webApi"></div>
+        </div>
+        <div class="panel">
+            <h3>Microtask Queue (Promises)</h3>
+            <div class="list" id="microQueue"></div>
+        </div>
+        <div class="panel">
+            <h3>Task Queue (Macrotasks)</h3>
+            <div class="list" id="taskQueue"></div>
+        </div>
+        <div class="panel">
+            <h3>Console</h3>
+            <div class="list" id="consoleOut"></div>
+        </div>
+    </div>
+
+    <script>
+        const state = {
+            callStack: [], webApi: [], microQueue: [], taskQueue: [], consoleOut: [],
+            isProcessing: false, counter: 1
+        };
+
+        function render() {
+            const renderList = (id, items, className) => {
+                document.getElementById(id).innerHTML = items.map(item => `<div class="item ${className}">${item}</div>`).join('');
+            };
+            renderList('callStack', state.callStack, 'sync');
+            renderList('webApi', state.webApi, 'async');
+            renderList('microQueue', state.microQueue, 'micro');
+            renderList('taskQueue', state.taskQueue, 'async');
+            renderList('consoleOut', state.consoleOut, 'console-item');
+        }
+
+        function addTask(type) {
+            const taskName = type === 'sync' ? `Log ${state.counter++}` : 
+                             type === 'async' ? `Timeout ${state.counter++}` : 
+                             `Promise ${state.counter++}`;
+            state.callStack.push(taskName);
+            render();
+            processEventLoop(type);
+        }
+
+        function clearAll() {
+            state.callStack = []; state.webApi = []; state.microQueue = []; state.taskQueue = []; state.consoleOut = []; state.counter = 1;
+            render();
+        }
+
+        function processEventLoop(type) {
+            if (state.isProcessing) return;
+            state.isProcessing = true;
+
+            setTimeout(() => {
+                const task = state.callStack.pop();
+                
+                if (type === 'sync') {
+                    state.consoleOut.push(task + " Executado");
+                } else if (type === 'async') {
+                    state.webApi.push(task);
+                    render();
+                    setTimeout(() => {
+                        state.webApi = state.webApi.filter(t => t !== task);
+                        state.taskQueue.push(task + " (Callback)");
+                        render();
+                    }, 1500);
+                } else if (type === 'micro') {
+                    state.microQueue.push(task + " (Resolved)");
+                }
+                
+                render();
+                state.isProcessing = false;
+            }, 800);
+        }
+
+        // Simulação do Tick do Event Loop
+        setInterval(() => {
+            if (state.callStack.length === 0) {
+                if (state.microQueue.length > 0) {
+                    const task = state.microQueue.shift();
+                    state.callStack.push(task);
+                    render();
+                    setTimeout(() => {
+                        state.callStack.pop();
+                        state.consoleOut.push(task + " Executado");
+                        render();
+                    }, 800);
+                } else if (state.taskQueue.length > 0) {
+                    const task = state.taskQueue.shift();
+                    state.callStack.push(task);
+                    render();
+                    setTimeout(() => {
+                        state.callStack.pop();
+                        state.consoleOut.push(task + " Executado");
+                        render();
+                    }, 800);
+                }
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
